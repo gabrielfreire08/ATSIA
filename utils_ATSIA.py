@@ -1,8 +1,119 @@
+######################################################################################################################################################
+######################################################################################################################################################
+######################################################################################################################################################
+######################################################################################################################################################
+######################################################## PARA ATSIA###################################################################################
+######################################################################################################################################################
+######################################################################################################################################################
+######################################################################################################################################################
+######################################################################################################################################################
+
+def obtencion_de_nombre_png(path):
+    img_list = os.listdir(path)
+
+    for file in img_list:
+        if not(file.endswith(".png")):
+            img_list.remove(file)
+    return img_list
+
+def get_metadata(path, organo, organo_len):
+    #Obtenemos todas las imágenes en el directorio que sean .png
+    #En caso de haber alguna otro tipo de archivo no lo tomará en cuenta para
+    #la metadata
+    img_list = obtencion_de_nombre_png(path)
+
+    #Creamos una tabla con zeros con el tamaño de la cantidad de imagenes como filas 
+    #y una columna donde irán los labels
+    zeros = np.zeros( (len(img_list), 1) )
+    labels_column = pd.DataFrame(zeros,columns=["labels"])
+    
+    # Separamos el nombre de la imagen por el separador "-" para obtener sus etiquetas (labels)
+    for i, img_name in enumerate(img_list):
+        img_name = " ".join(img_name[:organo_len[organo]].split('-'))
+        #El resultados nos da algo como esto : 'DT_G0 DC_G0 L_G0 M_G0 N_G0'
+        
+        labels_column.iloc[i,0] = img_name # localiza las columnas de grado de afectación correspondiente, marca con 1
+  
+    #Creamos el dataframe metadata para utilizarlos en el modelo de Multi-labe
+    metadata = pd.DataFrame()
+    metadata = pd.DataFrame(img_list, columns =['img_name'])       
+    metadata = metadata.join(labels_column)
+
+    return metadata
+
+
+def get_img_count(organos, organo_len, caracteristicas, grados, path):
+    import warnings
+    warnings.filterwarnings("ignore")
+    #Definición de las columnas que vamos a usar para cada grado
+    columns = ["Organo", "Caracteristica", "Grado"]
+    
+    #Creamos un dataframe final donde se van a ir uniendo el conteo de cada organo de cada grado de cada caracteristica
+    count_final = pd.DataFrame()
+
+    #empezamos la iteración por organos
+    for organo in tqdm(organos):
+
+        #En la vaiable count guardaremos la "Cantidad" de imágenes que tiene cada organa para cada caraterística y cada grado
+        #Al final la transformaremos a un pd.Series para unirlo al DataFrame final "count_organo" que se unirá al dataframe final
+        #"count_final"
+        count = {}
+
+        #La variable "count_organo" es donde vamos a guardar el dataframe de cada organo en el siguiente formato
+        '''
+        Organo              Característica      Grado      Cantidad
+        Hepatopancreas            DT              G0          123
+        Hepatopancreas            DT              G1          123
+        Hepatopancreas            DT              G2          123
+        Hepatopancreas            DT              G3          123
+        Hepatopancreas            DT              G4          123
+        Hepatopancreas            DC              G0          231
+        Hepatopancreas            DC              G1          231
+        Hepatopancreas            DC              G2          231
+        Hepatopancreas            DC              G3          231
+        Hepatopancreas            DC              G4          231'''
+        count_organo = pd.DataFrame(np.zeros((len(caracteristicas[organo])*len(grados), len(columns))), columns = columns)
+
+        #Lista de imágenes dentro de la carpeta de cada organo
+        img_list = obtencion_de_nombre_png(path["img"][organo])
+        
+        i = 0
+        for caracteristica in caracteristicas[organo]:
+            for grado in grados:
+                count_organo["Organo"][i] = organo
+                count_organo["Caracteristica"][i] = caracteristica
+                count_organo["Grado"][i] = grado
+                i+=1
+                
+                count[caracteristica, grado] = 0
+                for img_name in img_list:
+                    img_name = img_name[:organo_len[organo]].split('-')
+                    string_to_search = caracteristica + "_" + grado
+                    if string_to_search in img_name:
+                        count[caracteristica, grado] += 1
+                        
+        count = pd.DataFrame(pd.Series(count.values()), columns =['Cantidad'])            
+        count_organo = count_organo.join(count)
+        count_final = pd.concat([count_final, count_organo], ignore_index=True)
+    return count_final
+
+
+######################################################################################################################################################
+######################################################################################################################################################
+######################################################################################################################################################
+######################################################################################################################################################
+######################################################## DEFAULT POR fastai###########################################################################
+######################################################################################################################################################
+######################################################################################################################################################
+######################################################################################################################################################
+######################################################################################################################################################
+
 # Numpy and pandas by default assume a narrow screen - this fixes that
 from fastai.vision.all import *
 from nbdev.showdoc import *
 from ipywidgets import widgets
 from pandas.api.types import CategoricalDtype
+from tqdm import tqdm
 
 import matplotlib as mpl
 # mpl.rcParams['figure.dpi']= 200
@@ -105,55 +216,3 @@ def plot_function(f, tx=None, ty=None, title=None, min=-2, max=2, figsize=(6,4))
     if title is not None: ax.set_title(title)
     
     
-## PARA ATSIA########################################################################################
-
-def obtencion_de_nombre_png(path):
-    img_list = os.listdir(path)
-
-    for file in img_list:
-        if not(file.endswith(".png")):
-            img_list.remove(file)
-    return img_list
-
-def get_labels(organo):
-    labels = {}
-  
-    labels["Hepatopancreas"] = ["DT_G0", "DT_G1", "DT_G2", "DT_G3", "DT_G4", "DC_G0", "DC_G1", "DC_G2", "DC_G3", "DC_G4",
-                              "L_000", "L_005", "L_010", "L_015", "L_020", "L_025", "L_030", "L_035", "L_040", "L_045", 
-                              "L_050", "L_055", "L_060", "L_065", "L_070", "L_075", "L_080", "L_085", "L_090", "L_095",
-                              "L_100",
-                              "M_G0", "M_G1", "M_G2", "M_G3", "M_G4", "N_G0", "N_G1", "N_G2", "N_G3", "N_G4"]
-  ##AÑADIR LOS DEMAS LABELS
-
-    return labels[organo]
-
-
-def get_metadata(path, organo, organo_len):
-    #Obtenemos todas las imágenes en el directorio que sean .png
-    #En caso de haber alguna otro tipo de archivo no lo tomará en cuenta para
-    #la metadata
-    img_list = obtencion_de_nombre_png(path)
-
-    #Obtenemos todos los labels necesarios para el órgano en mención
-    labels = get_labels(organo)
-
-    #Creamos una tabla con zeros con el tamaño de la cantidad de imagenes como filas 
-    #y la cantidad de combinaciones de labels
-    zeros = np.zeros( (len(img_list), 1) )
-    labels_frame = pd.DataFrame(zeros,columns=["labels"])
-
-    #Rellenamos nuestra tabla de zeros (0s) con unos (1s) para cada característica 
-    #correspondiente.
-    columns_labels = labels_frame.columns # lista de generos (columnas)
-    # para cada característica, marcar el grado de afectación con 1
-    for i, img_name in enumerate(img_list):
-        img_name = " ".join(img_name[:organo_len[organo]].split('-'))# retorna los indices correspondientes a los grados de afectación de cada característica
-        #El resultados nos da algo como esto : 'DT_G0 DC_G0 L_000 M_G2 N_G0'
-        labels_frame.iloc[i,0] = img_name # localiza las columnas de grado de afectación correspondiente, marca con 1
-  
-    #Creamos el dataframe metadata para utilizarlos en el modelo de Multi-labe
-    metadata = pd.DataFrame()
-    metadata = pd.DataFrame(img_list, columns =['img_name'])       
-    metadata = metadata.join(labels_frame)
-
-    return metadata
