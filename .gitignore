@@ -2,6 +2,10 @@
 img/	
 res/
 models/
+model/
+data/
+*.orig
+*.bak
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
